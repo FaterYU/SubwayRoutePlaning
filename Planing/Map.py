@@ -426,11 +426,3 @@ class Map:
 
     def __init__(self):
         self.prepare()
-# map=Map()
-# map.prepare()
-# with open('kktohs.json', "r") as fs:
-#     content = fs.read()
-#     station_info_json = json.loads(content)
-#     map.print(station_info_json)
-#     input('origin')
-#     map.originprint()

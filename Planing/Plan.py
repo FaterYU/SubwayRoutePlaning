@@ -5,7 +5,7 @@ import time
 import json
 from collections import defaultdict
 import matplotlib.pyplot as plt
-
+import queue
 class Plan:
     def loadByinternet(self):
         null = None
@@ -57,7 +57,7 @@ class Plan:
                     y1 = line['stops'][station_id]['y']
                     y2 = line['stops'][station_id+1]['y']
                     distance = ((x1-x2)**2+(y1-y2)**2)**0.5
-                    station_list[line['stops'][station_id]['name']][line['stops'][station_id+1]['name']] = {'distance': distance, 'line_name':line['line_name']}
+                    station_list[line['stops'][station_id]['name']][line['stops'][station_id+1]['name']] = {'distance': distance, 'line_name':line['line_name'],'line_uid':line['line_uid'],'pair_line_uid':line['pair_line_uid']}
         return station_list
 
     def weightBystation(self):
@@ -68,7 +68,7 @@ class Plan:
                 if line['stops'][station_id]['name'] not in station_list:
                     station_list[line['stops'][station_id]['name']] = {}
                 if station_id != len(line['stops'])-1:
-                    station_list[line['stops'][station_id]['name']][line['stops'][station_id+1]['name']] = {'distance': 1, 'line_name':line['line_name']}
+                    station_list[line['stops'][station_id]['name']][line['stops'][station_id+1]['name']] = {'distance': 1, 'line_name':line['line_name'],'line_uid':line['line_uid'],'pair_line_uid':line['pair_line_uid']}
         return station_list
 
     def weightByline(self):
@@ -80,7 +80,7 @@ class Plan:
                     station_list[line['stops'][station_id]['name']] = {}
                 if station_id != len(line['stops'])-1:
                     istranslate = 1 if line['stops'][station_id+1]['name'] in self.gettranslatestation() else 0
-                    station_list[line['stops'][station_id]['name']][line['stops'][station_id+1]['name']] = {'distance': istranslate, 'line_name':line['line_name']}
+                    station_list[line['stops'][station_id]['name']][line['stops'][station_id+1]['name']] = {'distance': istranslate, 'line_name':line['line_name'],'line_uid':line['line_uid'],'pair_line_uid':line['pair_line_uid']}
         return station_list
 
     def dijkstra(self,e,s):
@@ -101,12 +101,8 @@ class Plan:
                     heapq.heappush(q,(dis[v],v))
         return dis,path
 
-
-    # start = '新城东'
-    # end = '东风'
     def planByweight(self,start,end):
         dis,path=self.dijkstra(self.station_list, start)
-        # print(path)
         q=[]
         q.append(path[end])
         while q[-1]['station']!=start:
@@ -118,8 +114,6 @@ class Plan:
 
         q.reverse()
         q.append({'station':end,'line_name':q[-1]['line_name']})
-        # print(q)
-        # print(dis[end])
         self.path=q
         self.dis=dis[end]
 
@@ -169,7 +163,8 @@ class Plan:
         if(self.weight == 'station'):
             self.station_list = self.weightBystation()
         elif(self.weight == 'line'):
-            self.station_list = self.weightByline()
+            # self.station_list = self.weightByline()
+            pass
         else:
             self.station_list = self.weightBydistance()
     
@@ -179,7 +174,10 @@ class Plan:
         self.setParams()
     
     def getpath(self,start,end):
-        self.planByweight(start,end)
+        if(self.weight=='line'):
+            self.planByline(start,end)
+        else:
+            self.planByweight(start,end)
         return self.path,self.dis
 
     def getpathinfo(self,weight,start,end):
@@ -192,14 +190,68 @@ class Plan:
         for i in self.station_list:
             result.append(i)
         return result
+    
+    def planByline(self,start,end):
+        translate=self.gettranslatestation()
+        q=queue.Queue()
+        path={}
+        station={}
+        marked=set()
+        for i in self.station_list[start]:
+            if(self.station_list[start][i]['line_uid'] in marked):
+                continue
+            marked.add(self.station_list[start][i]['line_uid'])
+            marked.add(self.station_list[start][i]['pair_line_uid'])
+            q.put(self.station_list[start][i]['line_name'])
+        while(not q.empty()):
+            line_name=q.get()
+            for i in self.station_info['content']:
+                if(line_name == i['line_name']):
+                    finded=0
+                    for j in i['stops']:
+                        if(j['name']==end):
+                            finded=1
+                            break
+                        if(j['name'] in translate):
+                            for k in self.station_list[j['name']]:
+                                if(self.station_list[j['name']][k]['line_uid'] not in marked):
+                                    q.put(self.station_list[j['name']][k]['line_name'])
+                                    marked.add(self.station_list[j['name']][k]['line_uid'])
+                                    marked.add(self.station_list[j['name']][k]['pair_line_uid'])
+                                    path[self.station_list[j['name']][k]['line_name']]=line_name
+                                    station[self.station_list[j['name']][k]['line_name']]=j['name']
+                    
+                    if(finded):
+                        result=[{'line_name':line_name,'station':end}]
+                        while(line_name in path):
+                            result.append({'line_name':path[line_name],'station':station[line_name]})
+                            line_name = path[line_name]
+                        result.reverse()
+                        return self.out_result(result,start,end)
+    
+    def out_result(self,result,start,end):
+        q=[]
+        for translate in result:
+            start_id=0
+            end_id=0
+            line_info=self.station_info['content'][[i['line_name'] for i in self.station_info['content']].index(translate['line_name'])]
+            for station in range(len(line_info['stops'])):
+                if(start==line_info['stops'][station]['name']):
+                    start_id=station
+                if(translate['station'] == line_info['stops'][station]['name']):
+                    end_id=station
+            step=int((end_id-start_id)/abs(end_id-start_id))
+            for station in range(start_id,end_id+step,step):
+                q.append({'station': line_info['stops'][station]['name'], 'line_name': translate['line_name']})
+            start=translate['station']
+        self.dis=len(result)
+        self.path=q
+                            
+                            
 
-if __name__ == '__main__':
-    start='黄沙'
-    end='万胜围'
-    plan=Plan()
-    path,dis=plan.getpath(start,end)
-    # print(path)
-    # print(plan.station_info)
-    info=plan.getpathinfo()
-    # print(info)
-    print(plan.getstations())
+# if __name__ == '__main__':
+#     start='长寿路'
+#     end='钟村'
+#     plan=Plan()
+#     result=plan.planByline(start,end)
+#     print(result)

@@ -29,7 +29,7 @@ def result(station):
         ], size='auto')
         put_collapse('Shortest actual distance', put_scope("distance"),open=True)
         put_collapse('Least number of station', put_scope("station"),open=True)
-        put_collapse('Least passenger flow volume', put_scope("line"),open=True)
+        put_collapse('Least number of transit station', put_scope("line"),open=True)
     
     with use_scope("distance"):
         plan.setweight('distance')
@@ -61,7 +61,7 @@ def result(station):
                 display.append([path[i]])
         put_row([
             put_table([[dis+1]], header=['Total station']),
-            put_button(' Show map by distance ',onclick=lambda:map.print(plan.getpathinfo('station',station['start'], station['end'])))
+            put_button(' Show map by station ',onclick=lambda:map.print(plan.getpathinfo('station',station['start'], station['end'])))
         ])
         id = 1
         for subpath in display:
@@ -79,8 +79,8 @@ def result(station):
             else:
                 display.append([path[i]])
         put_row([
-            put_table([[dis]], header=['Total transit stations passed']),
-            put_button(' Show map by distance ',onclick=lambda:map.print(plan.getpathinfo('line',station['start'], station['end'])))
+            put_table([[dis-1]], header=['Total transit stations']),
+            put_button(' Show map by transit stations ',onclick=lambda:map.print(plan.getpathinfo('line',station['start'], station['end'])))
         ])
         id = 1
         for subpath in display:
